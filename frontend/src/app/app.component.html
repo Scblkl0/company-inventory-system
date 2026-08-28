@@ -1,0 +1,100 @@
+<main *ngIf="!user" class="login-page">
+  <form class="login-card" (ngSubmit)="signIn()">
+    <h1>Inwentaryzacja firmy</h1><p>Zaloguj się do systemu.</p>
+    <label>Login lub e-mail<input name="username" [(ngModel)]="login.username" required></label>
+    <label>Hasło<input name="password" type="password" [(ngModel)]="login.password" required></label>
+    <p class="error" *ngIf="error">{{ error }}</p><button>Zaloguj się</button>
+    <small>Demo: admin / admin123</small>
+  </form>
+</main>
+
+<div *ngIf="user" class="layout">
+  <aside><h1>Inwentaryzacja</h1><p class="muted">{{ user.username }}</p>
+    <nav>
+      <ng-container *ngIf="isAdmin">
+        <button (click)="go('dashboard')" [class.active]="page==='dashboard'">Dashboard</button>
+        <button (click)="go('assets')" [class.active]="page==='assets'">Majątek</button>
+        <button (click)="go('employees')" [class.active]="page==='employees'">Pracownicy</button>
+        <button (click)="go('categories')" [class.active]="page==='categories'">Kategorie</button>
+        <button (click)="go('locations')" [class.active]="page==='locations'">Lokalizacje</button>
+        <button (click)="go('history')" [class.active]="page==='history'">Historia</button>
+        <button (click)="go('users')" [class.active]="page==='users'">Użytkownicy</button>
+      </ng-container>
+      <button (click)="go('profile')" [class.active]="page==='profile'">Mój profil</button>
+    </nav>
+    <button class="logout" (click)="logout()">Wyloguj</button>
+  </aside>
+  <section class="content"><p class="notice" *ngIf="message" role="status"><span aria-hidden="true">✓</span> {{ message }}</p><p class="error" *ngIf="error" role="alert"><strong>Wystąpił problem.</strong><span>{{ error }}</span></p>
+    <div class="credentials" *ngIf="accountResult">
+      <strong>Dane logowania - zapisz je teraz</strong>
+      <span>Login: <b>{{ accountResult.username }}</b></span>
+      <span>Hasło tymczasowe: <b>{{ accountResult.temporary_password }}</b></span>
+      <small>Hasło jest widoczne tylko teraz. Użytkownik może je później zmienić w swoim profilu.</small>
+    </div>
+    <ng-container [ngSwitch]="page">
+      <div *ngSwitchCase="'dashboard'"><h2>Dashboard</h2><div class="cards"><article><b>{{ count('assets') }}</b><span>Wszystkie składniki</span></article><article><b>{{ count('available') }}</b><span>Dostępne</span></article><article><b>{{ count('assigned') }}</b><span>Przypisane</span></article><article><b>{{ count('employees') }}</b><span>Pracownicy</span></article></div><p class="intro">Witaj w systemie. Z menu po lewej stronie można zarządzać majątkiem firmy.</p></div>
+      <div *ngSwitchCase="'assets'"><h2>Majątek firmy</h2>
+        <p class="readonly-note" *ngIf="!isAdmin">Masz dostęp tylko do przeglądania majątku.</p>
+        <form *ngIf="isAdmin" class="form-grid" (ngSubmit)="saveAsset()"><h3>{{ editingId ? 'Edycja składnika' : 'Nowy składnik' }}</h3>
+          <label>Nazwa<input name="name" [(ngModel)]="asset.name" required></label><label>Numer seryjny<input name="serial" [(ngModel)]="asset.serial_number"></label><label>Kategoria<select name="category" [(ngModel)]="asset.category_id"><option [ngValue]="null">— brak —</option><option *ngFor="let x of categories" [ngValue]="x.id">{{ x.name }}</option></select></label><label>Lokalizacja<select name="location" [(ngModel)]="asset.location_id"><option [ngValue]="null">— brak —</option><option *ngFor="let x of locations" [ngValue]="x.id">{{ x.name }}</option></select></label><div class="actions"><button>Zapisz</button><button type="button" class="secondary" (click)="cancel()">Anuluj</button></div></form>
+        <table><thead><tr><th>Nazwa</th><th>Nr inw.</th><th>Kategoria</th><th>Lokalizacja</th><th>Pracownik</th><th>Status</th><th *ngIf="isAdmin">Działania</th></tr></thead><tbody><tr *ngFor="let a of assets"><td>{{a.name}}</td><td>{{a.inventory_number}}</td><td>{{a.category_name || '—'}}</td><td>{{a.location_name || '—'}}</td><td>{{a.employee_name || '—'}}</td><td><span class="status" [class.status-assigned]="a.status === 'assigned'">{{a.status === 'assigned' ? 'Wydany' : 'Dostępny'}}</span></td><td *ngIf="isAdmin"><div class="asset-actions" *ngIf="!a.employee_id"><select [(ngModel)]="assignmentEmployee[a.id]"><option [ngValue]="null">Wybierz pracownika</option><option *ngFor="let x of employees" [ngValue]="x.id">{{ x.first_name }} {{ x.last_name }}</option></select><button class="small" (click)="assignAsset(a)">Wydaj</button></div><button *ngIf="a.employee_id" class="small" (click)="returnAsset(a)">Zarejestruj zwrot</button><button class="small secondary" (click)="openAssetHistory(a)">Historia</button><button class="small secondary" (click)="editAsset(a)">Edytuj</button><button class="small danger" (click)="deleteAsset(a.id)" [disabled]="a.employee_id" [title]="a.employee_id ? 'Najpierw zarejestruj zwrot' : ''">Usuń</button></td></tr><tr *ngIf="!assets.length"><td [attr.colspan]="isAdmin ? 7 : 6">Brak danych.</td></tr></tbody></table>
+      </div>
+      <div *ngSwitchCase="'employees'">
+        <h2>Pracownicy</h2>
+        <form class="form-grid" (ngSubmit)="saveEmployee()">
+          <h3>{{editingId ? 'Edycja pracownika' : 'Nowy pracownik'}}</h3>
+          <label>Imię<input name="first" [(ngModel)]="item.first_name" required></label>
+          <label>Nazwisko<input name="last" [(ngModel)]="item.last_name" required></label>
+          <label>E-mail<input name="email" type="email" [(ngModel)]="item.email"></label>
+          <label>Dział<input name="department" [(ngModel)]="item.department"></label>
+          <label>Stanowisko<input name="position" [(ngModel)]="item.position"></label>
+          <label *ngIf="!item.user_id" class="check-label"><input name="createAccount" type="checkbox" [(ngModel)]="item.create_account"> Utwórz konto użytkownika</label>
+          <ng-container *ngIf="item.create_account && !item.user_id">
+            <h3 class="account-heading">Dostęp do systemu</h3>
+            <label>Rola<select name="accountRole" [(ngModel)]="item.account_role"><option value="user">Użytkownik</option><option value="admin">Administrator</option></select></label>
+            <p class="readonly-note">Login i hasło tymczasowe zostaną wygenerowane automatycznie po zapisaniu pracownika.</p>
+          </ng-container>
+          <p *ngIf="item.user_id && editingId" class="linked-account">Powiązane konto: <b>{{item.username}}</b> ({{item.role}})</p>
+          <div class="actions"><button>Zapisz</button><button type="button" class="secondary" (click)="cancel()">Anuluj</button></div>
+        </form>
+        <table><thead><tr><th>Imię i nazwisko</th><th>E-mail</th><th>Dział</th><th>Stanowisko</th><th>Konto</th><th></th></tr></thead><tbody>
+          <tr *ngFor="let x of employees"><td>{{x.first_name}} {{x.last_name}}</td><td>{{x.email || '—'}}</td><td>{{x.department || '—'}}</td><td>{{x.position || '—'}}</td><td>{{x.username || 'brak'}}</td><td><button class="small" (click)="editEmployee(x)">Edytuj</button><button class="small danger" (click)="deleteItem('employees', x.id)">Usuń</button></td></tr>
+        </tbody></table>
+      </div>
+      <div *ngSwitchCase="'categories'"><h2>Kategorie</h2><p class="readonly-note" *ngIf="!isAdmin">Tryb tylko do odczytu.</p><form *ngIf="isAdmin" class="form-grid short" (ngSubmit)="saveItem('categories')"><h3>{{editingId ? 'Edycja kategorii' : 'Nowa kategoria'}}</h3><label>Nazwa<input name="name" [(ngModel)]="item.name" required></label><label>Opis<input name="description" [(ngModel)]="item.description"></label><div class="actions"><button>Zapisz</button><button type="button" class="secondary" (click)="cancel()">Anuluj</button></div></form><table><thead><tr><th>Nazwa</th><th>Opis</th><th *ngIf="isAdmin"></th></tr></thead><tbody><tr *ngFor="let x of categories"><td>{{x.name}}</td><td>{{x.description}}</td><td *ngIf="isAdmin"><button class="small" (click)="editItem(x)">Edytuj</button><button class="small danger" (click)="deleteItem('categories',x.id)">Usuń</button></td></tr></tbody></table></div>
+      <div *ngSwitchCase="'locations'"><h2>Lokalizacje</h2><p class="readonly-note" *ngIf="!isAdmin">Tryb tylko do odczytu.</p><form *ngIf="isAdmin" class="form-grid short" (ngSubmit)="saveItem('locations')"><h3>{{editingId ? 'Edycja lokalizacji' : 'Nowa lokalizacja'}}</h3><label>Nazwa<input name="name" [(ngModel)]="item.name" required></label><label>Adres<input name="address" [(ngModel)]="item.address"></label><div class="actions"><button>Zapisz</button><button type="button" class="secondary" (click)="cancel()">Anuluj</button></div></form><table><thead><tr><th>Nazwa</th><th>Adres</th><th *ngIf="isAdmin"></th></tr></thead><tbody><tr *ngFor="let x of locations"><td>{{x.name}}</td><td>{{x.address}}</td><td *ngIf="isAdmin"><button class="small" (click)="editItem(x)">Edytuj</button><button class="small danger" (click)="deleteItem('locations',x.id)">Usuń</button></td></tr></tbody></table></div>
+      <div *ngSwitchCase="'history'">
+        <h2>Historia majątku</h2>
+        <section class="history-filters">
+          <label class="history-query">Składnik lub treść wpisu<input name="historyQuery" list="historyAssets" [ngModel]="historyQuery" (ngModelChange)="applyHistoryQuery($event)" placeholder="Wpisz nazwę, numer lub szczegóły"><datalist id="historyAssets"><option *ngFor="let a of assets" [value]="assetHistoryLabel(a)"></option></datalist><small>Wybierz podpowiedź, aby zobaczyć konkretny składnik, albo wpisz dowolny tekst.</small></label>
+          <label>Akcja<select name="historyAction" [(ngModel)]="historyFilter.action"><option value="">Wszystkie akcje</option><option *ngFor="let action of historyActions" [value]="action">{{action}}</option></select></label>
+          <label>Od dnia<input name="historyFrom" type="date" [(ngModel)]="historyFilter.date_from"></label>
+          <label>Do dnia<input name="historyTo" type="date" [(ngModel)]="historyFilter.date_to"></label>
+          <button type="button" class="secondary history-clear" (click)="clearHistoryFilters()">Wyczyść filtry</button>
+        </section>
+        <p class="history-count">Wyświetlono: <b>{{filteredHistory.length}}</b> z {{history.length}} wpisów</p>
+        <table><thead><tr><th>Data</th><th>Akcja</th><th>Składnik</th><th>Szczegóły</th></tr></thead><tbody><tr *ngFor="let x of filteredHistory"><td>{{x.created_at | date:'dd.MM.yyyy HH:mm'}}</td><td>{{x.action}}</td><td><b>{{x.asset_name || 'Usunięty składnik'}}</b><small class="inventory-number" *ngIf="x.inventory_number">{{x.inventory_number}}</small></td><td>{{x.details}}</td></tr><tr *ngIf="!filteredHistory.length"><td colspan="4">Brak wpisów pasujących do wybranych filtrów.</td></tr></tbody></table>
+      </div>
+      <div *ngSwitchCase="'users'">
+        <h2>Użytkownicy</h2><p class="intro">Konta tworzy się razem z pracownikiem. Tutaj można zmienić rolę, zablokować dostęp lub zresetować hasło.</p>
+        <table><thead><tr><th>Użytkownik</th><th>Pracownik</th><th>Rola</th><th>Status</th><th></th></tr></thead><tbody>
+          <tr *ngFor="let account of users">
+            <td><b>{{account.username}}</b></td><td>{{account.employee_name || 'konto techniczne'}}</td>
+            <td><select [(ngModel)]="account.role" (change)="updateUser(account)" [disabled]="account.id===user.id"><option value="user">Użytkownik</option><option value="admin">Administrator</option></select></td>
+            <td><span class="status" [class.status-off]="!account.active">{{account.active ? 'Aktywne' : 'Zablokowane'}}</span></td>
+            <td><button class="small secondary" (click)="resetPassword(account)">Resetuj hasło</button><button class="small" [class.danger]="account.active" [disabled]="account.id===user.id" (click)="toggleUser(account)">{{account.active ? 'Zablokuj' : 'Odblokuj'}}</button></td>
+          </tr>
+        </tbody></table>
+      </div>
+      <div *ngSwitchCase="'profile'">
+        <h2>Mój profil</h2>
+        <div class="profile-grid">
+          <article class="profile-card"><h3>Dane konta</h3><dl><dt>Login</dt><dd>{{profile.username}}</dd><dt>Rola</dt><dd>{{profile.role==='admin' ? 'Administrator' : 'Użytkownik'}}</dd><dt>Imię i nazwisko</dt><dd>{{profile.first_name ? profile.first_name + ' ' + profile.last_name : 'Brak powiązanego pracownika'}}</dd><dt>Dział</dt><dd>{{profile.department || '—'}}</dd><dt>Stanowisko</dt><dd>{{profile.position || '—'}}</dd><dt>E-mail</dt><dd>{{profile.email || '—'}}</dd></dl></article>
+          <form class="profile-card password-form" (ngSubmit)="changePassword()"><h3>Zmień hasło</h3><label>Aktualne hasło<input name="currentPassword" type="password" [(ngModel)]="passwordForm.current_password" required></label><label>Nowe hasło<input name="newPassword" type="password" minlength="6" [(ngModel)]="passwordForm.new_password" required></label><label>Powtórz nowe hasło<input name="repeatPassword" type="password" minlength="6" [(ngModel)]="passwordForm.repeat_password" required></label><button>Zmień hasło</button></form>
+        </div>
+        <h3 class="section-title">Moje wyposażenie</h3>
+        <table><thead><tr><th>Nazwa</th><th>Nr inw.</th><th>Kategoria</th><th>Lokalizacja</th><th>Status</th></tr></thead><tbody><tr *ngFor="let a of profile.assets"><td>{{a.name}}</td><td>{{a.inventory_number}}</td><td>{{a.category_name || '—'}}</td><td>{{a.location_name || '—'}}</td><td>Wydany</td></tr><tr *ngIf="!profile.assets?.length"><td colspan="5">Brak przypisanego wyposażenia.</td></tr></tbody></table>
+      </div>
+    </ng-container>
+  </section>
+</div>
